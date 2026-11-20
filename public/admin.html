@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin — El Juego del Dinero</title>
+<link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+<header class="admin-header">
+  <div class="wrap">
+    <strong>El Juego del Dinero</strong><span>Panel de administración</span>
+    <button id="logoutBtn" class="btn btn--ghost" hidden>Cerrar sesión</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <!-- Login -->
+  <section id="loginView" class="panel" hidden>
+    <h1>Entrar al panel</h1>
+    <p class="muted">Solo el administrador puede publicar artículos.</p>
+    <form id="loginForm">
+      <label>Usuario
+        <input id="loginUser" name="user" type="text" autocomplete="username" required>
+      </label>
+      <label>Contraseña
+        <input id="loginPass" name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <p id="loginError" class="error" hidden></p>
+      <button class="btn btn--primary btn--big" type="submit">Entrar</button>
+    </form>
+  </section>
+
+  <!-- Dashboard -->
+  <section id="dashView" hidden>
+    <div class="dash-head">
+      <h1>Artículos</h1>
+      <button id="newBtn" class="btn btn--primary btn--big">+ Nuevo artículo</button>
+    </div>
+    <p id="dashError" class="error" hidden></p>
+    <ul id="articleList" class="list"></ul>
+  </section>
+
+  <!-- Editor -->
+  <section id="editorView" class="panel" hidden>
+    <h1 id="editorTitle">Nuevo artículo</h1>
+    <form id="editorForm">
+      <input id="editId" type="hidden">
+      <label>Título
+        <input id="editTitle" type="text" maxlength="200" required placeholder="Ej. Comprar un auto nuevo, ¿es un error financiero?">
+      </label>
+      <label>Slug (dirección web, se genera solo)
+        <input id="editSlug" type="text" maxlength="100" placeholder="comprar-auto-nuevo-es-un-error">
+      </label>
+      <label>Resumen (aparece en la portada)
+        <textarea id="editExcerpt" rows="2" maxlength="300" placeholder="Una o dos frases que inviten a leer."></textarea>
+      </label>
+      <label>Portada (JPG o PNG, máx. 1.5 MB)
+        <input id="editCover" type="file" accept="image/jpeg,image/png">
+      </label>
+      <div id="coverPreview" class="cover-preview" hidden>
+        <img id="coverPreviewImg" alt="Vista previa de la portada">
+        <button type="button" id="coverRemoveBtn" class="btn btn--ghost">Quitar portada</button>
+      </div>
+      <label>Cuerpo del artículo
+        <textarea id="editBody" rows="14" placeholder="Escribe aquí. Una línea en blanco separa párrafos.&#10;&#10;## Subtítulo&#10;&#10;**Negrita** y *cursiva*.&#10;&#10;- Punto de lista&#10;- Otro punto"></textarea>
+      </label>
+      <p class="hint">Formato: línea en blanco = párrafo nuevo · <code>## </code> = subtítulo · <code>- </code> = lista · <code>**texto**</code> = negrita · <code>*texto*</code> = cursiva.</p>
+      <div class="row">
+        <button type="button" id="previewBtn" class="btn">Vista previa</button>
+        <button type="submit" data-status="draft" class="btn">Guardar borrador</button>
+        <button type="submit" data-status="published" class="btn btn--primary">Publicar</button>
+        <button type="button" id="cancelBtn" class="btn btn--ghost">Cancelar</button>
+      </div>
+      <p id="editorError" class="error" hidden></p>
+    </form>
+    <div id="previewBox" class="preview" hidden>
+      <h2>Vista previa</h2>
+      <div id="previewContent"></div>
+    </div>
+  </section>
+</main>
+
+<script src="/admin.js"></script>
+</body>
+</html>

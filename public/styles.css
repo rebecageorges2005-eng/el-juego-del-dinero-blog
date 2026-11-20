@@ -1,0 +1,107 @@
+/* El Juego del Dinero — estilos (mobile-first).
+ * Paleta: verde profundo + dorado. Sin fuentes externas (fuentes del sistema).
+ * Sin imágenes de stock: las portadas las sube el admin; sin portada se usa
+ * un bloque degradado con el símbolo $. */
+
+:root {
+  --green: #0b3d2e;
+  --green-dark: #072a20;
+  --green-soft: #e7f2ec;
+  --gold: #c9a227;
+  --gold-dark: #a8861b;
+  --ink: #1c2420;
+  --muted: #5c6b64;
+  --line: #dfe7e1;
+  --bg: #f7f8f5;
+  --card: #ffffff;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.6;
+  font-size: 17px;
+}
+a { color: var(--green); }
+img { max-width: 100%; }
+.wrap { max-width: 880px; margin: 0 auto; padding: 0 16px; }
+
+/* Cabecera */
+.site-header { background: var(--green); color: #fff; }
+.site-header .wrap {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding-top: 14px; padding-bottom: 14px;
+}
+.brand { display: flex; align-items: center; gap: 12px; color: #fff; text-decoration: none; }
+.brand-mark {
+  display: grid; place-items: center;
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--gold); color: var(--green-dark);
+  font-size: 28px; font-weight: 800; flex: none;
+}
+.brand-text { font-size: 20px; font-weight: 800; line-height: 1.15; }
+.brand-text small { display: block; font-size: 12px; font-weight: 400; color: #cfe3d6; }
+.site-header nav a { color: #d8eadf; text-decoration: none; margin-left: 16px; font-size: 15px; }
+.site-header nav a:hover { color: #fff; }
+
+/* Tarjetas de artículos */
+.cards { display: grid; gap: 20px; margin: 28px 0; }
+.card {
+  background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow: hidden;
+}
+.card-cover { width: 100%; height: 190px; object-fit: cover; display: block; }
+.card-cover--empty {
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--green), #145c43 55%, var(--gold));
+  color: rgba(255, 255, 255, .9); font-size: 64px; font-weight: 800;
+}
+.card-body { padding: 18px 20px 20px; }
+.card-body time, .article time { color: var(--muted); font-size: 14px; }
+.card-body h2 { margin: 6px 0 8px; font-size: 21px; line-height: 1.3; }
+.card-body h2 a { color: var(--ink); text-decoration: none; }
+.card-body h2 a:hover { color: var(--green); }
+.card-body p { margin: 0 0 12px; color: #33403a; }
+.read-more { font-weight: 700; text-decoration: none; }
+.read-more:hover { text-decoration: underline; }
+
+/* Estado vacío */
+.empty { text-align: center; padding: 56px 16px; }
+.empty h1 { font-size: 30px; margin: 0 0 10px; color: var(--green); }
+.empty p { color: var(--muted); max-width: 520px; margin: 0 auto 12px; }
+
+/* Paginación */
+.pagination {
+  display: flex; justify-content: space-between; align-items: center;
+  margin: 8px 0 32px; font-size: 15px;
+}
+.pagination a { font-weight: 700; text-decoration: none; }
+.pagination span { color: var(--muted); }
+
+/* Artículo */
+.article { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px 22px; margin: 28px 0; }
+.article h1 { font-size: 29px; line-height: 1.25; margin: 8px 0 12px; color: var(--green-dark); }
+.article .lede { font-size: 19px; color: #33403a; border-left: 4px solid var(--gold); padding-left: 14px; margin: 0 0 20px; }
+.article-cover { width: 100%; border-radius: 10px; margin: 0 0 20px; }
+.article-body p { margin: 0 0 16px; }
+.article-body h2 { font-size: 22px; color: var(--green-dark); margin: 28px 0 10px; }
+.article-body ul { margin: 0 0 16px; padding-left: 22px; }
+.article-body li { margin-bottom: 6px; }
+.article-nav { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding-top: 18px; margin-top: 28px; font-size: 15px; }
+.article-nav a { font-weight: 700; text-decoration: none; }
+
+/* Pie */
+.site-footer { background: var(--green-dark); color: #b9d2c2; margin-top: 40px; }
+.site-footer .wrap { padding-top: 26px; padding-bottom: 26px; }
+.site-footer p { margin: 4px 0; font-size: 14px; }
+.site-footer strong { color: #fff; }
+
+@media (min-width: 640px) {
+  .cards { grid-template-columns: 1fr 1fr; }
+  .card-cover { height: 170px; }
+  .article h1 { font-size: 34px; }
+}
