@@ -13,7 +13,10 @@
  *   GET  /cover/<slug>       portada del artículo (JPG/PNG desde la BD)
  *   GET  /sitemap.xml  /robots.txt  /rss.xml
  *   GET  /admin               panel (login + editor)
+ *   GET  /juegos              Trivia del Dinero (🎮 Juegos, sin cuentas)
  *   GET  /api/health
+ *   GET  /api/trivia/play     10 preguntas al azar (sin respuestas)
+ *   POST /api/trivia/answer   valida una respuesta (sin cuentas ni RV)
  *
  * Rutas de admin (JWT en cookie httpOnly, o cabecera X-Publish-Key):
  *   POST   /api/admin/login
@@ -34,6 +37,7 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 
 const db = require("./db");
+const TRIVIA_QUESTIONS = require("./api/trivia-questions");
 const {
   escapeHtml, slugify, isValidSlug, renderBody,
   validateCover, validateArticleInput, formatDate,
@@ -134,7 +138,7 @@ function requireAdminOrKey(req, res, next) {
 const SITE_NAME = "El Juego del Dinero";
 const TAGLINE = "Dinero claro, sin vueltas: aprende a ganar, ahorrar e invertir.";
 
-function pageShell({ title, description, body, ogImage }) {
+function pageShell({ title, description, body, ogImage, extraHead }) {
   const desc = escapeHtml(description || TAGLINE);
   const t = escapeHtml(title || SITE_NAME);
   return `<!DOCTYPE html>
@@ -150,12 +154,13 @@ function pageShell({ title, description, body, ogImage }) {
 <meta property="og:description" content="${desc}">
 ${ogImage ? `<meta property="og:image" content="${escapeHtml(ogImage)}">` : ""}
 <link rel="stylesheet" href="/styles.css">
+${extraHead || ""}
 </head>
 <body>
 <header class="site-header">
   <div class="wrap">
     <a class="brand" href="/"><span class="brand-mark">$</span><span class="brand-text">${SITE_NAME}<small>${escapeHtml(TAGLINE)}</small></span></a>
-    <nav><a href="/">Inicio</a><a href="/rss.xml">RSS</a></nav>
+    <nav><a href="/">Inicio</a><a href="/juegos">🎮 Juegos</a><a href="/rss.xml">RSS</a></nav>
   </div>
 </header>
 <main class="wrap">${body}</main>
@@ -196,6 +201,59 @@ function articleCard(a) {
 app.get("/api/health", (req, res) =>
   res.json({ ok: true, service: "el-juego-del-dinero-blog", time: new Date().toISOString() }));
 
+/* ---------------- Trivia del Dinero ----------------
+ * Juego público, sin cuentas ni RV. La respuesta correcta y la
+ * explicación NUNCA salen en /play; solo se revelan en /answer
+ * después de responder. Las respuestas no se registran en los logs.
+ * Reglas: 10 preguntas por partida, 10 puntos por acierto,
+ * 3 corazones (cada error quita medio corazón). Sin repetir preguntas
+ * hasta agotar el banco de 100: el cliente guarda los ids vistos y los
+ * manda en `exclude`; cuando el banco se agota, empieza ronda nueva. */
+const TRIVIA_PER_GAME = 10;
+
+function shuffleCopy(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function publicQuestion(q) {
+  return { id: q.id, category: q.category, question: q.question, options: q.options };
+}
+
+app.get("/api/trivia/play", (req, res) => {
+  const seen = new Set(
+    String(req.query.exclude || "").split(",")
+      .map((s) => parseInt(s, 10))
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= TRIVIA_QUESTIONS.length));
+  let pool = TRIVIA_QUESTIONS.filter((q) => !seen.has(q.id));
+  let freshRound = false;
+  if (pool.length < TRIVIA_PER_GAME) {
+    // Banco agotado (o casi): ronda nueva con todo el banco.
+    pool = TRIVIA_QUESTIONS;
+    freshRound = true;
+  }
+  const questions = shuffleCopy(pool).slice(0, TRIVIA_PER_GAME).map(publicQuestion);
+  res.json({ questions, total: TRIVIA_QUESTIONS.length, freshRound });
+});
+
+app.post("/api/trivia/answer", (req, res) => {
+  const id = Number(req.body?.id);
+  const choice = req.body?.choice;
+  const q = TRIVIA_QUESTIONS.find((x) => x.id === id);
+  if (!Number.isInteger(id) || !q) {
+    return res.status(404).json({ error: "Pregunta no encontrada" });
+  }
+  if (!Number.isInteger(choice) || choice < 0 || choice > 3) {
+    return res.status(400).json({ error: "Respuesta inválida (debe ser 0, 1, 2 o 3)" });
+  }
+  const correct = choice === q.correctIndex;
+  res.json({ correct, correctIndex: q.correctIndex, explanation: q.explanation, points: correct ? 10 : 0 });
+});
+
 app.get("/", db.ah(async (req, res) => {
   const page = Math.max(1, parseInt(String(req.query.page || "1"), 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
@@ -209,25 +267,95 @@ app.get("/", db.ah(async (req, res) => {
      LIMIT ? OFFSET ?`, PAGE_SIZE, offset);
   const totalPages = Math.max(1, Math.ceil((total ? total.n : 0) / PAGE_SIZE));
 
-  let body;
+  const triviaPromo = `<section class="trivia-promo">
+    <div>
+      <h2>🎮 ¿Te atreves con la Trivia del Dinero?</h2>
+      <p>10 preguntas, 3 corazones. Aprende de dinero jugando.</p>
+    </div>
+    <a class="trivia-btn trivia-btn--small" href="/juegos">Jugar →</a>
+  </section>`;
+  let content;
   if (!rows.length && page === 1) {
-    body = `<section class="empty">
+    content = `<section class="empty">
       <h1>Próximamente</h1>
       <p>Estamos preparando los primeros artículos de ${SITE_NAME}. Vuelve pronto: dinero claro, sin vueltas.</p>
     </section>`;
   } else {
-    body = `<section class="cards">${rows.map(articleCard).join("\n")}</section>`;
+    content = `<section class="cards">${rows.map(articleCard).join("\n")}</section>`;
     if (totalPages > 1) {
-      body += `<nav class="pagination">` +
+      content += `<nav class="pagination">` +
         (page > 1 ? `<a href="/?page=${page - 1}">← Anterior</a>` : "") +
         `<span>Página ${page} de ${totalPages}</span>` +
         (page < totalPages ? `<a href="/?page=${page + 1}">Siguiente →</a>` : "") +
         `</nav>`;
     }
   }
+  const body = triviaPromo + content;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.send(pageShell({ title: SITE_NAME, body }));
 }));
+
+/* ---------------- 🎮 Juegos — Trivia del Dinero ----------------
+ * Página del juego (la lógica vive en /trivia.js, los estilos en
+ * /trivia.css). Sin cuentas ni RV: el progreso vive en localStorage. */
+app.get("/juegos", (req, res) => {
+  const body = `<section class="trivia">
+  <div class="trivia-top">
+    <a class="trivia-back" href="/">← Volver al inicio</a>
+    <button id="trivia-sound" class="trivia-sound" type="button" aria-label="Sonido">🔊</button>
+  </div>
+
+  <div id="trivia-start" class="trivia-panel">
+    <div class="trivia-emoji" aria-hidden="true">🎮</div>
+    <h1>Trivia del Dinero</h1>
+    <p class="trivia-sub">¿Cuánto sabes de dinero? 10 preguntas, 3 corazones y una explicación en cada respuesta.</p>
+    <ul class="trivia-rules">
+      <li>🎯 10 preguntas por partida · 10 puntos por acierto.</li>
+      <li>❤️ 3 corazones: cada error te quita medio corazón. Si te quedas sin corazones, la partida termina.</li>
+      <li>🔁 Sin repetir preguntas hasta agotar las 100 del banco.</li>
+      <li>⏳ Si pierdes todos los corazones, espera 24 horas para volver a jugar.</li>
+    </ul>
+    <p class="trivia-best">Mejor puntaje: <strong id="trivia-best-score">0</strong> · Mejor racha: <strong id="trivia-best-streak">0</strong></p>
+    <p id="trivia-lockout" class="trivia-lockout" hidden></p>
+    <button id="trivia-start-btn" class="trivia-btn" type="button">Empezar a jugar →</button>
+  </div>
+
+  <div id="trivia-play" class="trivia-panel" hidden>
+    <div class="trivia-status">
+      <span id="trivia-progress">Pregunta 1/10</span>
+      <span id="trivia-hearts" class="trivia-hearts" aria-label="Corazones"></span>
+      <span id="trivia-score">0 pts</span>
+    </div>
+    <div class="trivia-bar"><div id="trivia-bar-fill"></div></div>
+    <p id="trivia-category" class="trivia-category"></p>
+    <h2 id="trivia-question"></h2>
+    <div id="trivia-options" class="trivia-options"></div>
+    <div id="trivia-feedback" class="trivia-feedback" hidden></div>
+    <button id="trivia-next-btn" class="trivia-btn" type="button" hidden>Siguiente →</button>
+  </div>
+
+  <div id="trivia-end" class="trivia-panel" hidden>
+    <div class="trivia-emoji" aria-hidden="true">🏁</div>
+    <h2 id="trivia-end-title">¡Partida terminada!</h2>
+    <p id="trivia-end-score" class="trivia-end-score"></p>
+    <p id="trivia-end-detail"></p>
+    <p id="trivia-end-lockout" class="trivia-lockout" hidden></p>
+    <p id="trivia-end-best"></p>
+    <button id="trivia-again-btn" class="trivia-btn" type="button">Jugar de nuevo →</button>
+    <p><a href="/">← Volver al inicio</a></p>
+  </div>
+
+  <p id="trivia-error" class="trivia-error" hidden></p>
+</section>
+<script src="/trivia.js" defer></script>`;
+  res.setHeader("Content-Type", "text/html; charset=utf-8");
+  res.send(pageShell({
+    title: "🎮 Juegos — Trivia del Dinero",
+    description: "Trivia del Dinero: 10 preguntas, 3 corazones. Pon a prueba lo que sabes de dinero y aprende en cada respuesta.",
+    extraHead: `<link rel="stylesheet" href="/trivia.css">`,
+    body,
+  }));
+});
 
 app.get("/articulo/:slug", db.ah(async (req, res) => {
   const slug = String(req.params.slug || "");
@@ -291,7 +419,7 @@ app.get("/sitemap.xml", db.ah(async (req, res) => {
   const rows = await db.all(
     `SELECT slug, updated_at FROM articles WHERE status = 'published'
      ORDER BY COALESCE(published_at, created_at) DESC`);
-  const urls = [`<url><loc>${SITE_URL}/</loc></url>`].concat(rows.map((r) =>
+  const urls = [`<url><loc>${SITE_URL}/</loc></url>`, `<url><loc>${SITE_URL}/juegos</loc></url>`].concat(rows.map((r) =>
     `<url><loc>${SITE_URL}/articulo/${r.slug}</loc><lastmod>${String(r.updated_at || "").slice(0, 10)}</lastmod></url>`));
   res.setHeader("Content-Type", "application/xml; charset=utf-8");
   res.send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.join("\n")}\n</urlset>`);

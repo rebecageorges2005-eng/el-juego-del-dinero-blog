@@ -4,3 +4,4 @@ node_modules/
 .env
 PUBLISH_KEY.txt
 .DS_Store
+TURSO_CREDENTIALS.txt

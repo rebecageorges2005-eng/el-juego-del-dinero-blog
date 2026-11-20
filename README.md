@@ -24,6 +24,9 @@ libSQL, JWT con `uid`, JSON 10 MB, migraciones al arrancar).
   Pensado para usar desde el teléfono.
 - **API para Muse** (publicación programada, p. ej. desde crons diarios):
   ver abajo. La clave nunca se registra en los logs.
+- **Trivia del Dinero** (`/juegos`, pestaña 🎮 Juegos): juego público sin
+  cuentas ni RV — 10 preguntas, 3 corazones, 10 puntos por acierto, sin
+  repetir preguntas hasta agotar el banco de 100. Ver abajo.
 
 ## Ejecutar en local
 
@@ -72,6 +75,50 @@ Campos: `title` (3–200 caracteres, obligatorio al crear), `slug`
 `coverBase64` + `coverMime`, `coverRemove: true` (quitar portada en PATCH),
 `status`: `draft` | `published`.
 
+## Trivia del Dinero (🎮 Juegos)
+
+Juego público en `/juegos`, sin cuentas, sin RV y sin premios. Banco de
+100 preguntas originales en español (`api/trivia-questions.js`, 5
+categorías: Ahorro, Deudas y tarjetas, Casa y auto, Inversión,
+El dinero y tú; respuestas correctas balanceadas 25/25/25/25).
+
+**Reglas:**
+- 10 preguntas por partida, 10 puntos por acierto.
+- 3 corazones: cada error quita medio corazón; 6 errores terminan la
+  partida antes de la pregunta 10.
+- Sin repetir preguntas hasta agotar el banco: el cliente guarda los ids
+  vistos en localStorage y los manda en `exclude`; cuando el banco se
+  agota, el servidor devuelve una ronda nueva (`freshRound: true`).
+- **Bloqueo de 24 horas (regla de Georges): si pierdes todos los
+  corazones, hay que esperar 24 horas para volver a jugar.** La pantalla
+  inicial muestra la cuenta atrás ("Vuelve en X h Y min") y bloquea el
+  botón de inicio. Si terminas las 10 preguntas con corazones, puedes
+  jugar de nuevo de inmediato (sin bloqueo).
+- Mejor puntaje y mejor racha se guardan en localStorage.
+- Sonidos Web Audio sin archivos: acierto = arpegio ascendente
+  659.25/783.99/1046.5 Hz; error = una nota grave (Do3 130.81 Hz +
+  armónicos).
+- Flechas como en la app Reaviva: pantalla inicial → "→" a la derecha;
+  jugando / resultado → "←" a la izquierda.
+
+**Endpoints** (públicos, sin autenticación; las respuestas correctas
+nunca salen en `/play`):
+
+```bash
+# 10 preguntas al azar (sin respuesta correcta ni explicación)
+curl -s "http://localhost:3000/api/trivia/play?exclude=1,2,3"
+# → {"questions":[{"id":4,"category":"Ahorro","question":"...","options":[...]}],"total":100,"freshRound":false}
+
+# Con todo el banco excluido → ronda nueva (freshRound: true)
+curl -s "http://localhost:3000/api/trivia/play?exclude=$(seq -s, 1 100)"
+
+# Validar una respuesta
+curl -s -X POST http://localhost:3000/api/trivia/answer \
+  -H "Content-Type: application/json" -d '{"id":4,"choice":3}'
+# → {"correct":true,"correctIndex":3,"explanation":"...","points":10}
+# id desconocido → 404; choice fuera de 0-3 → 400
+```
+
 ## Salud
 
 `GET /api/health` → `{"ok":true,"service":"el-juego-del-dinero-blog",...}`
@@ -79,11 +126,15 @@ Campos: `title` (3–200 caracteres, obligatorio al crear), `slug`
 ## Estructura
 
 ```
-server.js        Express: rutas públicas, admin y API
+server.js        Express: rutas públicas, admin, API y trivia
 db.js            Turso / SQLite local + migraciones (tabla articles)
 lib.js           slug, markdown mínimo, validación de portadas y artículos
+api/
+  trivia-questions.js  Banco de 100 preguntas de la Trivia del Dinero
 public/
   styles.css     Estilos del blog (verde profundo + dorado, mobile-first)
+  trivia.css     Estilos del juego
+  trivia.js      Lógica del juego (corazones, bloqueo 24 h, sonidos, récords)
   admin.html     Panel admin (login + lista + editor)
   admin.css      Estilos del panel
   admin.js       Lógica del panel (fetch con cookie, vista previa)
